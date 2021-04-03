@@ -23,12 +23,13 @@ namespace Bank
             // concat strings 4 and 00000
             Iin = this.Mii.ToString() + "00000";
             AccID = this.Randimize(9);
-            CheckSum = "7";   // change it later
+            CheckSum = LuhnGen();
             CardNumber = this.Iin + this.AccID + this.CheckSum;
             Pin = this.Randimize(4);
             AccBalance = 0;
             Counter++;
         }
+        // Account menu
         public void AccMenu()
         {
             while (true)
@@ -53,11 +54,13 @@ namespace Bank
                 else Console.WriteLine("Zła wartość");
             }
         }
+
         public void AccountInfo()
         {
             Console.WriteLine("Your account balance is $" + this.AccBalance);
         }
-
+        //          ### generators ###
+        ////////////////// random numbers
         private string Randimize(int n)
         {
             ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -106,8 +109,44 @@ namespace Bank
                 return null;
             }
         }
-        
 
+        ////////////////// chechsum generator
+        private string LuhnGen()
+        {
+            string num = this.Iin + this.AccID;
+            int len = num.Length;
+            float sum = 0;
+            int factor = 1, i = 0;
+
+            while (len > 0)
+            {
+                if (len % 2 == 0)
+                {
+                    factor = 1;
+                }
+                else factor = 2;
+
+                // get int value of char on position i and multiply it
+                int temp = Convert.ToInt32(Char.GetNumericValue(num, i)) * factor;
+
+                if (temp >= 10)
+                {
+                    // temp = 1 + (temp - 10) -> temp = temp - 9
+                    // ex. 13  |  1 + (13 - 10) = 4
+                    temp -= 9;
+                }
+
+                sum += temp;
+                len--;
+                i++;
+            }
+            sum = sum % 10;
+            if (sum != 0) sum = 10 - sum;
+
+            return sum.ToString();
+        }
+        
+        //              ### variables ###
         // first part of card number - what sort of institution issued the card
         public string Mii { get; }
         // second part of card number - name of bank 
