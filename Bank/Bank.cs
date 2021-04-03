@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using SQLite;
 
 namespace Bank
 {
@@ -23,7 +24,7 @@ namespace Bank
             // concat strings 4 and 00000
             Iin = this.Mii.ToString() + "00000";
             AccID = this.Randimize(9);
-            CheckSum = LuhnGen();
+            CheckSum = this.GenerateChecksum();
             CardNumber = this.Iin + this.AccID + this.CheckSum;
             Pin = this.Randimize(4);
             AccBalance = 0;
@@ -59,6 +60,7 @@ namespace Bank
         {
             Console.WriteLine("Your account balance is $" + this.AccBalance);
         }
+        
         //          ### generators ###
         ////////////////// random numbers
         private string Randimize(int n)
@@ -110,13 +112,17 @@ namespace Bank
             }
         }
 
-        ////////////////// chechsum generator
-        private string LuhnGen()
+        ////////////////// checksum generator
+        public string GenerateChecksum()
         {
             string num = this.Iin + this.AccID;
+            return LuhnGen(num);
+        }
+        public static string LuhnGen(string num)
+        {
             int len = num.Length;
             float sum = 0;
-            int factor = 1, i = 0;
+            int factor, i = 0;
 
             while (len > 0)
             {
@@ -128,14 +134,12 @@ namespace Bank
 
                 // get int value of char on position i and multiply it
                 int temp = Convert.ToInt32(Char.GetNumericValue(num, i)) * factor;
-
                 if (temp >= 10)
                 {
                     // temp = 1 + (temp - 10) -> temp = temp - 9
                     // ex. 13  |  1 + (13 - 10) = 4
                     temp -= 9;
                 }
-
                 sum += temp;
                 len--;
                 i++;
@@ -146,7 +150,7 @@ namespace Bank
             return sum.ToString();
         }
         
-        //              ### variables ###
+        //              ### class variables ###
         // first part of card number - what sort of institution issued the card
         public string Mii { get; }
         // second part of card number - name of bank 
@@ -165,6 +169,15 @@ namespace Bank
 
     class Bank
     {
+        static bool VerifyNumber(string number)
+        {
+            // slice number and checksum
+            string temp = number.Substring(0, number.Length-1);
+            string checksum = Card.LuhnGen(temp);
+            temp = number.Substring(number.Length-1);
+            if (checksum == temp) return true;
+            else return false;
+        }
         static void LogInto(List<Card> accounts, string number, string pin)
         {
             bool isLogIn = false;
@@ -210,11 +223,16 @@ namespace Bank
                 {
                     Console.WriteLine("Enter your card number: ");
                     string number = Console.ReadLine();
+                    number = number.Trim(' ');
 
                     Console.WriteLine("Enter your pin: ");
                     string pin = Console.ReadLine();
+                    pin = pin.Trim(' ');
 
-                    LogInto(cards, number, pin);
+                    // checking the checksum of the entered number
+                    if (VerifyNumber(number)) LogInto(cards, number, pin);
+                    else Console.WriteLine("Card number is incorrect");
+
                 }
                 else if (n == 0 && parseSuccess) Environment.Exit(0);
                 else Console.WriteLine("Zła wartość");
@@ -223,6 +241,7 @@ namespace Bank
 
         static void Main()
         {
+            
             MainMenu();
         }
     }
