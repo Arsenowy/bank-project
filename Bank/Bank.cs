@@ -1,9 +1,91 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
-using SQLite;
+using System.Data.SQLite;
+// im using Data.SQLite extenssion v1.0.113.7 
+// by SQLite Development Team 
+// website: system.data.sqlite.org
+
 
 namespace Bank
 {
+    // ######### Database
+    // ##############################################################################################
+    class Database
+    {
+        public SQLiteConnection myConnection;
+        public Database()
+        {
+            myConnection = new SQLiteConnection("Data Source=database.sqlite3");
+            // if database doent exist -> create it
+            if (!File.Exists("./database.sqlite3"))
+            {
+                SQLiteConnection.CreateFile("database.sqlite3");
+                myConnection.Open();
+                string sql = "CREATE TABLE Card (id INTEGER PRIMARY KEY, card_number TEXT, pin TEXT, balance INTEGER DEFAULT 0)";
+                SQLiteCommand command = new SQLiteCommand(sql, myConnection);
+                command.ExecuteNonQuery();
+                myConnection.Close();
+            }
+        }
+        public void OpenConnection()
+        {
+            if (myConnection.State != System.Data.ConnectionState.Open)
+            {
+                myConnection.Open();
+            }
+        }
+        public void CloseConnection()
+        {
+            if (myConnection.State != System.Data.ConnectionState.Closed)
+            {
+                myConnection.Close();
+            }
+        }
+        public static bool Insert(string card, string pin, int balance = 0)
+        {
+            Database dbObject = new Database();
+
+            string query = "INSERT INTO Card ('card_number', 'pin', 'balance') VALUES (@card_number, @pin, @balance)";
+            SQLiteCommand insert = new SQLiteCommand(query, dbObject.myConnection);
+
+            dbObject.OpenConnection();
+            insert.Parameters.AddWithValue("@card_number", card);
+            insert.Parameters.AddWithValue("@pin", pin);
+            insert.Parameters.AddWithValue("@balance", balance);
+            bool result = Convert.ToBoolean(insert.ExecuteNonQuery());
+            dbObject.CloseConnection();
+
+            return result;
+        }
+        public static int FindCard(string cardNumber, string pin)
+        {
+            bool isLogin = false;
+            int balance = 0;
+            Database dbObject = new Database();
+
+            string query = "SELECT * FROM Card WHERE card_number = '" + cardNumber + "' LIMIT 1";
+            SQLiteCommand insert = new SQLiteCommand(query, dbObject.myConnection);
+            dbObject.OpenConnection();
+            SQLiteDataReader result = insert.ExecuteReader();
+            if (result.HasRows)
+            {
+                while (result.Read())
+                {
+                    if (result["pin"].ToString() == pin)
+                    {
+                        isLogin = true;
+                        balance = Convert.ToInt32(result["balance"]);
+                    }
+                }
+            }
+            dbObject.CloseConnection();
+            if (isLogin) return balance;
+            else return -1;
+        }
+    }
+    // ######### cards
+    // ##############################################################################################
     interface ICards
     {
         string Mii { get; }
@@ -31,7 +113,7 @@ namespace Bank
             Counter++;
         }
         // Account menu
-        public void AccMenu()
+        public static void AccMenu(string number, int balance)
         {
             while (true)
             {
@@ -44,7 +126,7 @@ namespace Bank
 
                 if (n == 1 && parseSuccess)
                 {
-                    this.AccountInfo();
+                    Console.WriteLine("You have $" + balance);
                 }
                 else if (n == 2 && parseSuccess)
                 {
@@ -55,44 +137,11 @@ namespace Bank
                 else Console.WriteLine("Zła wartość");
             }
         }
-
-        public void AccountInfo()
-        {
-            Console.WriteLine("Your account balance is $" + this.AccBalance);
-        }
         
         //          ### generators ###
         ////////////////// random numbers
         private string Randimize(int n)
         {
-            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-            // na samym początku początku moim pomysłem było napisanie własnej funkcji
-            // służącej do dopisywania zer w przypadku wylosowania mniejszej liczby niż
-            // 4-ro lub 9-cio cyfrowej
-            // jednak myśląc nad tym zagadnieniem z Wojtkiem Kędzierskim 
-            // została znaleziona do tego dedykowana funkcja w c# - wpisanie D* w argumencie funkcji tostring,
-            //więc zostawiam tylko moją metodę w komentarzu
-            ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-            //Random r = new Random();
-            //int rInt = 0;
-            ////a random number with 4 digits
-            //if (n == 4) rInt = r.Next(0, 9999);
-            //else if (n == 9) rInt = r.Next(0, 999999999);
-            //else
-            //{
-            //    Console.WriteLine("Enter proper value of length");
-            //    return null;
-            //}
-            //string random = rInt.ToString();
-            //string zero = "";
-            //for (int i = 0; i < n - random.Length; i++)
-            //{
-            //    zero += "0";
-            //}
-            //return zero + random;
-            ///////////////////////////////////////////
-
             Random r = new Random();
             int rInt;
 
@@ -178,28 +227,18 @@ namespace Bank
             if (checksum == temp) return true;
             else return false;
         }
-        static void LogInto(List<Card> accounts, string number, string pin)
+        static void LogInto(string number, string pin)
         {
-            bool isLogIn = false;
-            foreach (Card item in accounts)
+            int balance = Database.FindCard(number, pin);
+            if (balance >= 0)
             {
-                if (item.CardNumber == number && item.Pin == pin)
-                {
-                    isLogIn = true;
-                    Console.WriteLine("You have successfully logged in!");
-                    item.AccMenu();
-                    break;
-                }
-            }
-            if (isLogIn == false)
-            {
-                Console.WriteLine("Wrong card number or PIN!");
-            }
+                Console.WriteLine("you have successfully logged in");
+                Card.AccMenu(number, balance);
+
+            } else Console.WriteLine("Wrong card number or PIN!");
         }
         public static void MainMenu()
         {
-            List<Card> cards = new List<Card>();
-
             while (true)
             {
                 Console.WriteLine("\nMenu");
@@ -211,37 +250,46 @@ namespace Bank
 
                 if (n == 1 && parseSuccess)
                 {
-                    cards.Add(new Card());
+                    Card card = new Card();
+                    Database.Insert(card.CardNumber, card.Pin);
+
                     Console.WriteLine("Your card has been created");
                     Console.WriteLine("Your card numer: ");
-                    Console.WriteLine(cards[Card.Counter - 1].CardNumber);
-
+                    Console.WriteLine(card.CardNumber);
                     Console.WriteLine("Your PIN numer: ");
-                    Console.WriteLine(cards[Card.Counter - 1].Pin);
+                    Console.WriteLine(card.Pin);
                 }
                 else if (n == 2 && parseSuccess)
                 {
                     Console.WriteLine("Enter your card number: ");
                     string number = Console.ReadLine();
                     number = number.Trim(' ');
-
-                    Console.WriteLine("Enter your pin: ");
-                    string pin = Console.ReadLine();
-                    pin = pin.Trim(' ');
-
-                    // checking the checksum of the entered number
-                    if (VerifyNumber(number)) LogInto(cards, number, pin);
-                    else Console.WriteLine("Card number is incorrect");
-
+                    //if card number is a numeric value and is of the correct length
+                    if (long.TryParse(number, out _) && number.Length == 16)
+                    {
+                        Console.WriteLine("Enter your pin: ");
+                        string pin = Console.ReadLine();
+                        pin = pin.Trim(' ');
+                        //if pin is a numeric value and is of the correct length
+                        if (Int32.TryParse(pin, out _) && pin.Length == 4)
+                        {
+                            // checking the checksum of the entered number
+                            if (VerifyNumber(number)) LogInto(number, pin);
+                            else Console.WriteLine("Card number is incorrect");
+                            // else pin is wrong
+                        }
+                        else Console.WriteLine("Something went wrong, try again ");
+                        // else card number is wrong
+                    }
+                    else Console.WriteLine("Something went wrong, try again ");
                 }
                 else if (n == 0 && parseSuccess) Environment.Exit(0);
-                else Console.WriteLine("Zła wartość");
+                else Console.WriteLine("Bad value!");
             }
         }
 
         static void Main()
         {
-            
             MainMenu();
         }
     }
