@@ -7,6 +7,10 @@ using System.Data.SQLite;
 // website: system.data.sqlite.org
 
 
+/// Dopiero w tym momencie zorientowałem się, że mogłem wszystko napisać w oparciu o ID
+/// Wtedy kod można by łatwiej rozbudowywać w przyszłości
+/// 
+
 namespace Bank
 {
     // ######### Database
@@ -58,10 +62,9 @@ namespace Bank
 
             return result;
         }
-        public static int FindCard(string cardNumber, string pin)
+        public static bool FindCard(string cardNumber, string pin)
         {
             bool isLogin = false;
-            int balance = 0;
             Database dbObject = new Database();
 
             string query = "SELECT * FROM Card WHERE card_number = '" + cardNumber + "' LIMIT 1";
@@ -75,13 +78,31 @@ namespace Bank
                     if (result["pin"].ToString() == pin)
                     {
                         isLogin = true;
-                        balance = Convert.ToInt32(result["balance"]);
                     }
                 }
             }
             dbObject.CloseConnection();
-            if (isLogin) return balance;
-            else return -1;
+            return isLogin;
+
+        }
+        public static int GetBalance(string card)
+        {
+            Database dbObject = new Database();
+            int balance = 0;
+
+            string query = "SELECT balance FROM Card WHERE card_number = '" + card + "' LIMIT 1";
+            SQLiteCommand getVal = new SQLiteCommand(query, dbObject.myConnection);
+            dbObject.OpenConnection();
+            SQLiteDataReader result = getVal.ExecuteReader();
+            if (result.HasRows)
+            {
+                while (result.Read())
+                {
+                    balance = Convert.ToInt32(result["balance"]);
+                }
+            }
+            dbObject.CloseConnection();
+            return balance;
         }
     }
     // ######### cards
@@ -112,8 +133,8 @@ namespace Bank
             AccBalance = 0;
             Counter++;
         }
-        // Account menu
-        public static void AccMenu(string number, int balance)
+        // ############## Account menu ##################
+        public static void AccMenu(string number)
         {
             while (true)
             {
@@ -124,17 +145,20 @@ namespace Bank
                 bool parseSuccess = Int32.TryParse(Console.ReadLine(), out int n);
                 Console.Clear();
 
+                int balance = Database.GetBalance(number);
+
                 if (n == 1 && parseSuccess)
                 {
                     Console.WriteLine("You have $" + balance);
                 }
+               
                 else if (n == 2 && parseSuccess)
                 {
                     break;
                 }
                 else if (n == 0 && parseSuccess) Environment.Exit(0);
 
-                else Console.WriteLine("Zła wartość");
+                else Console.WriteLine("Bad value");
             }
         }
         
@@ -216,6 +240,7 @@ namespace Bank
         public static int Counter = 0;
     }
 
+    /// ########## MAIN PROGRAM ##########
     class Bank
     {
         static bool VerifyNumber(string number)
@@ -229,11 +254,10 @@ namespace Bank
         }
         static void LogInto(string number, string pin)
         {
-            int balance = Database.FindCard(number, pin);
-            if (balance >= 0)
+            if (Database.FindCard(number, pin))
             {
                 Console.WriteLine("you have successfully logged in");
-                Card.AccMenu(number, balance);
+                Card.AccMenu(number);
 
             } else Console.WriteLine("Wrong card number or PIN!");
         }
